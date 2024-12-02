@@ -1,0 +1,191 @@
+'''
+This code is for a simple 2D T-Rex running game using Pygame. The game involves a T-Rex character that the player controls, where the main objective
+is to avoid obstacles by jumping. The game progressively gets harder as the score increases, with obstacles speeding up and spawning more frequently
+You play the game by hitting spacebar, once the game is finished you can play again if you wish or quit and the game also remembers the highscore while its open
+'''
+import pygame
+import random
+
+# Initialize Pygame
+pygame.init()
+
+# Screen dimensions and colors
+Screen_Width = 800
+Screen_Height = 400
+White = (255, 255, 255)
+Black = (0, 0, 0)
+Gray = (200, 200, 200)
+Ground_Height = Screen_Height - 70
+
+# Create game window
+screen = pygame.display.set_mode((Screen_Width, Screen_Height))
+pygame.display.set_caption('T-REX GAME')
+
+# Clock and font
+clock = pygame.time.Clock()
+font = pygame.font.Font(None, 36)
+
+# Dimensions
+T_Rex_Width = 40
+T_Rex_Height = 50
+Obstacle_Width = 20
+Obstacle_Height = 50
+Cloud_Width = 60
+Cloud_Height = 40
+
+# Initial positions
+t_rex_y = Ground_Height - T_Rex_Height
+obstacles = []  # List of obstacle X-coordinates
+cloud_x = random.randint(600, 800)
+cloud_y = random.randint(50, 150)
+
+# Movement and physics
+is_jumping = False
+jump_height = 12
+jump_velocity = jump_height
+gravity = 1
+obstacle_speed = 7  # Initial speed of obstacles
+cloud_speed = 4  # Speed up clouds
+
+# Obstacle timing and spacing
+obstacle_spawn_timer = 0
+obstacle_spawn_interval = 100  # Decrease spawn interval to make obstacles spawn faster
+min_obstacle_gap = 200  
+max_obstacle_gap = 400  # Smaller gap between obstacles
+
+# Score and game state
+score = 0
+high_score = 0
+game_over = False
+
+# Collision detection function
+def check_collision(t_rex_rect, obstacles):
+    for obstacle_x in obstacles:
+        obstacle_rect = pygame.Rect(obstacle_x, Ground_Height - Obstacle_Height, Obstacle_Width, Obstacle_Height)
+        if t_rex_rect.colliderect(obstacle_rect):
+            return True
+    return False
+
+# Draw T-Rex
+def draw_t_rex(x, y):
+    pygame.draw.rect(screen, Black, (x, y, T_Rex_Width, T_Rex_Height))  # Body
+    pygame.draw.circle(screen, Black, (x + T_Rex_Width // 2, y - 10), 10)  # Head
+    pygame.draw.rect(screen, Black, (x + 5, y + T_Rex_Height, 10, 10))  # Left leg
+    pygame.draw.rect(screen, Black, (x + T_Rex_Width - 15, y + T_Rex_Height, 10, 10))  # Right leg
+    pygame.draw.polygon(screen, Black, [(x, y + 20), (x - 20, y + 30), (x, y + 40)])  # Tail
+
+# Draw cloud
+def draw_cloud(x, y):
+    pygame.draw.ellipse(screen, Gray, (x, y, Cloud_Width, Cloud_Height))
+
+# Function to calculate obstacle speed based on score
+def calculate_obstacle_speed(score):
+    # Speed increases as score increases
+    return min(7 + score // 5, 15)  # Cap the maximum speed at 15
+
+# Main game loop
+running = True
+while running:
+    screen.fill(White)
+
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            running = False
+
+    # Jumping
+    keys = pygame.key.get_pressed()
+    if not is_jumping and keys[pygame.K_SPACE]:
+        is_jumping = True
+
+    if is_jumping:
+        t_rex_y -= jump_velocity
+        jump_velocity -= gravity
+        if jump_velocity < -jump_height:
+            is_jumping = False
+            jump_velocity = jump_height
+            t_rex_y = Ground_Height - T_Rex_Height  # Ensure the T-Rex lands correctly
+
+    # Update obstacle speed based on score
+    obstacle_speed = calculate_obstacle_speed(score)
+
+    # Increase game speed and adjust obstacle spacing dynamically
+    if score % 5 == 0 and score > 0:
+        cloud_speed = 4 + (score // 10)
+        min_obstacle_gap = max(150, min_obstacle_gap - 5)  # Reduce gap with progression
+
+    # Manage obstacle spawning and spacing
+    obstacle_spawn_timer += 1
+    if obstacle_spawn_timer >= obstacle_spawn_interval:
+        obstacle_spawn_timer = 0
+        last_obstacle = obstacles[-1] if obstacles else Screen_Width
+        new_obstacle_x = last_obstacle + random.randint(min_obstacle_gap, max_obstacle_gap)
+        if len(obstacles) < 5:  # Maintain a reasonable number of obstacles
+            obstacles.append(new_obstacle_x)
+
+    # Draw T-Rex
+    t_rex_rect = pygame.Rect(50, t_rex_y, T_Rex_Width, T_Rex_Height)
+    draw_t_rex(50, t_rex_y)
+
+    # Move and draw obstacles
+    obstacles_to_remove = []
+    for i in range(len(obstacles)):
+        obstacles[i] -= obstacle_speed
+        if obstacles[i] < -Obstacle_Width:  # Remove obstacle if it goes off screen
+            obstacles_to_remove.append(obstacles[i])
+            score += 1
+        pygame.draw.rect(screen, Black, (obstacles[i], Ground_Height - Obstacle_Height, Obstacle_Width, Obstacle_Height))
+    obstacles = [x for x in obstacles if x not in obstacles_to_remove]
+
+    # Move and draw cloud
+    cloud_x -= cloud_speed
+    if cloud_x < -Cloud_Width:
+        cloud_x = random.randint(Screen_Width, Screen_Width + 100)
+        cloud_y = random.randint(50, 150)
+    draw_cloud(cloud_x, cloud_y)
+
+    # Check collision
+    if check_collision(t_rex_rect, obstacles):
+        game_over = True
+        if score > high_score:
+            high_score = score
+
+    # Draw ground
+    pygame.draw.line(screen, Black, (0, Ground_Height), (Screen_Width, Ground_Height), 3)
+
+    # Display score and high score
+    score_text = font.render(f'Score: {score}', True, Black)
+    high_score_text = font.render(f'High Score: {high_score}', True, Black)
+    screen.blit(score_text, (10, 10))
+    screen.blit(high_score_text, (10, 40))
+
+    # Update the display
+    pygame.display.flip()
+    clock.tick(30)
+
+    # Handle game over
+    if game_over:
+        while game_over:
+            screen.fill(White)
+            game_over_text = font.render('Game Over! Press R to Restart or Q to Quit.', True, Black)
+            screen.blit(game_over_text, (Screen_Width // 2 - 200, Screen_Height // 2))
+            pygame.display.flip()
+
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    running = False
+                    game_over = False
+                keys = pygame.key.get_pressed()
+                if keys[pygame.K_r]:
+                    # Reset game state
+                    t_rex_y = Ground_Height - T_Rex_Height
+                    obstacles = []  # Start obstacles from the right edge
+                    obstacle_speed = 7
+                    cloud_speed = 4
+                    score = 0
+                    game_over = False
+                elif keys[pygame.K_q]:
+                    running = False
+                    game_over = False
+
+# Quit the game
+pygame.quit()
